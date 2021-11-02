@@ -9,4 +9,6 @@ signal(SIGTERM) { _ in
     exit(0)
 }
 
+startServer()
+
 App.shared.run()

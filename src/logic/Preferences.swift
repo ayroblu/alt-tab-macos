@@ -401,11 +401,11 @@ class Preferences {
     static func jsonEncode<T>(_ value: T) -> String where T: Encodable {
         return String(data: try! JSONEncoder().encode(value), encoding: .utf8)!
     }
-    
+
     static func indexToName(_ baseName: String, _ index: Int) -> String {
         return baseName + (index == 0 ? "" : String(index + 1))
     }
-    
+
     static func nameToIndex(_ name: String) -> Int {
         guard let number = name.last?.wholeNumberValue else { return 0 }
         return number - 1
