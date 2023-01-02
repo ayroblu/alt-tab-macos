@@ -19,6 +19,7 @@ func stopServer() {
 private func setEndpoints() {
     server["/"] = { request in HttpResponse.ok(.text("{}")) }
     server["/windows"] = { _ in getWindows() }
+    server.POST["/window/image"] = windowImage
     server.PUT["/window/focus"] = focusWindow
     server.DELETE["/window"] = closeWindow
 }
@@ -67,4 +68,39 @@ private func closeWindow(_ request: HttpRequest) -> HttpResponse {
         }).map({ _ in
             HttpResponse.ok(.text(""))
         }) ?? HttpResponse.badRequest(.text(""))
+}
+
+private func windowImage(_ request: HttpRequest) -> HttpResponse {
+    let form = request.parseUrlencodedForm()
+    return form.first { $0.0 == "windowId" }
+        .flatMap { Int($0.1) }
+        .flatMap { windowId in
+            Windows.list.first { $0.cgWindowId.map {$0 == windowId} ?? false }
+        }.map { window in
+          if let windowId = window.cgWindowId, let thumbnail = window.thumbnail {
+            return saveImage(windowId: windowId, image: thumbnail)
+          }
+          return false
+        }.map { _ in
+          HttpResponse.ok(.text(""))
+        } ?? HttpResponse.badRequest(.text(""))
+}
+private func saveImage(windowId: CGWindowID, image: NSImage) -> Bool {
+  let destinationURL = URL(fileURLWithPath: "/tmp").appendingPathComponent("alt-tab-\(windowId).png")
+  return image.pngWrite(to: destinationURL)
+}
+extension NSImage {
+    var pngData: Data? {
+        guard let tiffRepresentation = tiffRepresentation, let bitmapImage = NSBitmapImageRep(data: tiffRepresentation) else { return nil }
+        return bitmapImage.representation(using: .png, properties: [:])
+    }
+    func pngWrite(to url: URL, options: Data.WritingOptions = .atomic) -> Bool {
+        do {
+            try pngData?.write(to: url, options: options)
+            return true
+        } catch {
+            print(error)
+            return false
+        }
+    }
 }
