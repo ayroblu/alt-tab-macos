@@ -76,13 +76,10 @@ private func windowImage(_ request: HttpRequest) -> HttpResponse {
         .flatMap { Int($0.1) }
         .flatMap { windowId in
             Windows.list.first { $0.cgWindowId.map {$0 == windowId} ?? false }
-        }.map { window in
-          if let windowId = window.cgWindowId, let thumbnail = window.thumbnail {
-            return saveImage(windowId: windowId, image: thumbnail)
-          }
-          return false
-        }.map { _ in
-          HttpResponse.ok(.text(""))
+        }.flatMap { w in
+          w.thumbnail?.pngData
+        }.map { data in
+          HttpResponse.ok(.data(data))
         } ?? HttpResponse.badRequest(.text(""))
 }
 private func saveImage(windowId: CGWindowID, image: NSImage) -> Bool {
