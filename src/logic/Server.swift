@@ -3,6 +3,7 @@ import Swifter
 let server = HttpServer()
 
 func startServer() {
+    createMessagePort()
     setEndpoints()
     do {
         try server.start(9999, forceIPv4: true)
@@ -18,13 +19,17 @@ func stopServer() {
 
 private func setEndpoints() {
     server["/"] = { request in HttpResponse.ok(.text("{}")) }
-    server["/windows"] = { _ in getWindows() }
+    server["/windows"] = getWindowsHttp
     server.POST["/window/image"] = windowImage
     server.PUT["/window/focus"] = focusWindow
     server.DELETE["/window"] = closeWindow
 }
 
-private func getWindows() -> HttpResponse {
+private func getWindowsHttp(_ request: HttpRequest) -> HttpResponse {
+    let payload = getWindows()
+    return HttpResponse.ok(.json(payload))
+}
+private func getWindows() -> [String: Any] {
     let windowData = Windows.list.map({
         [
             "name": $0.title ?? "(Unknown)", "isFullscreen": $0.isFullscreen,
@@ -41,7 +46,7 @@ private func getWindows() -> HttpResponse {
 
     let payload: [String: Any] = ["windows": windowData, "version": 1]
 
-    return HttpResponse.ok(.json(payload))
+    return payload
 }
 
 private func focusWindow(_ request: HttpRequest) -> HttpResponse {
@@ -100,4 +105,28 @@ extension NSImage {
             return false
         }
     }
+}
+
+var callback: CFMessagePortCallBack = { messagePort, messageID, cfData, info in
+  guard let dataReceived = cfData as Data?,
+        let string = String(data: dataReceived, encoding: .utf8) else {
+    return nil
+  }
+  print("callback", string)
+  let payload = getWindows()
+  guard let dataToSend = try? JSONSerialization.data(withJSONObject: payload) else {
+    print("not convertible data")
+    return nil
+  }
+//  let dataToSend = Data("finished".utf8)
+  return Unmanaged.passRetained(dataToSend as CFData)
+}
+
+func createMessagePort() {
+  var context = CFMessagePortContext(version: 0, info: nil, retain: nil, release: nil, copyDescription: nil)
+  let port = "com.lwouis.alt-tab-macos" as CFString
+  if let messagePort = CFMessagePortCreateLocal(nil, port, callback, &context, nil),
+     let source = CFMessagePortCreateRunLoopSource(nil, messagePort, 0) {
+    CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+  }
 }
